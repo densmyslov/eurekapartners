@@ -1,8 +1,10 @@
 import streamlit as st
 import pandas as pd
+import requests
 from PIL import Image
 import base64
 from io import BytesIO
+from time import sleep
 import auth
 
 st.set_page_config(page_title="Admin Dashboard", layout="wide")
@@ -45,13 +47,50 @@ section = st.sidebar.radio("Navigate", [
 if section == "COI Management":
     st.header("COI Management")
 
-    st.subheader("Add New COI")
-    with st.form("add_coi"):
-        st.text_input("Full Name")
-        st.text_input("Email")
-        st.number_input("Initial Token Balance", min_value=0)
-        st.slider("Initial Token Price", value=10, min_value=1, max_value=100)
-        st.form_submit_button("Add COI")
+    add_coi_cols = st.columns(3)
+    with add_coi_cols[0]:
+
+        st.subheader("Add New COI")
+        with st.form("add_coi"):
+            full_name = st.text_input("Full Name")
+            email = st.text_input("Email")
+            initial_tokens = st.number_input("Initial Token Balance", min_value=0)
+            initial_price = st.slider("Initial Token Price", value=10, min_value=1, max_value=100)
+            access_on = st.toggle("Access On", value=True)
+            submitted = st.form_submit_button("Add COI")
+
+            if submitted:
+                cognito_jwt_token = st.session_state.get("id_token") # authorization token
+
+                if not full_name or not email:
+                    st.error("Full Name and Email are required.")
+                else:
+                    api_url = "https://xuyzj7f0zd.execute-api.us-east-1.amazonaws.com/prod/add-coi"
+                    headers = {
+                        "Authorization": cognito_jwt_token,
+                        "Content-Type": "application/json"
+                    }
+                    data = {
+                        "email": email,
+                        "full_name": full_name,
+                        "token_balance": initial_tokens,
+                        "token_price": initial_price,
+                        "access_on": access_on
+                    }
+
+                    try:
+                        response = requests.post(api_url, json=data, headers=headers)
+                        if response.status_code == 200:
+                            resp_json = response.json()
+                            message = resp_json.get("message", "Success")
+                            placeholder = st.empty()
+                            placeholder.success(message)
+                            sleep(2)
+                            placeholder.empty()
+                        else:
+                            st.error(f"Error: {response.status_code} - {response.text}")
+                    except Exception as e:
+                        st.error(f"Request failed: {e}")
 
     st.subheader("All Users")
     st.dataframe(user_data)

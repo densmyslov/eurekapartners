@@ -56,7 +56,7 @@ def handle_auth():
 
 
     # --- Fetch and Cache Public Keys ---
-    @st.cache_resource(ttl=3600)
+    @st.cache_resource(ttl=10800)
     def get_public_keys():
         try:
             response = requests.get(JWKS_URL, timeout=10)
