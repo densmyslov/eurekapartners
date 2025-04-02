@@ -64,7 +64,7 @@ if section == "COI Management":
 
     
     coi_cols1, coi_cols2, coi_cols3 = st.columns(3)
-    with coi_cols1.expander("Add new COI"):
+    with coi_cols1.expander("Add new / updateCOI"):
 
 
 
@@ -86,7 +86,10 @@ if section == "COI Management":
 
 
                 response = af.add_new_coi(full_name, email, initial_tokens, initial_price, access_on)
-                af.update_coi_df_on_submit(coi_df, response, coi_table_container)
+                if response.status_code == 200:
+                    af.update_coi_df_on_submit(coi_df, response, coi_table_container)
+                else:
+                    st.error(f"Error: {response.status_code} - {response.text}")
 
 
     with coi_cols2.expander("Delete COI"):
