@@ -10,6 +10,8 @@ from jose import jwt, jwk
 from jose.exceptions import ExpiredSignatureError, JWTClaimsError, JWTError
 
 
+
+
 # --- Load Cognito Config ---
 COGNITO_DOMAIN = st.secrets["cognito"]["domain"]
 CLIENT_ID = st.secrets["cognito"]["client_id"]

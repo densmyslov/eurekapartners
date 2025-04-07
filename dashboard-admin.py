@@ -11,10 +11,22 @@ from io import BytesIO
 import auth
 import admin_functions as af
 
-
-
-
 st.set_page_config(page_title="Admin Dashboard", layout="wide")
+
+# --- Break out of an iframe if present ---
+st.markdown(
+    """
+    <script type="text/javascript">
+      if (window.top !== window.self) {
+        window.top.location = window.location.href;
+      }
+    </script>
+    """,
+    unsafe_allow_html=True
+)
+
+
+
 
 auth.handle_auth()
 
