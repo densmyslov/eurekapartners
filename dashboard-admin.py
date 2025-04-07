@@ -30,6 +30,7 @@ login.handle_auth()
 coi_df = af.load_coi_table()
 
 
+
 # Load the image
 image = Image.open("assets/eureka_logo.jpeg")
 
@@ -72,7 +73,7 @@ if section == "COI Management":
     with coi_cols1.expander("Add new / updateCOI"):
 
 
-
+#============================================ADD NEW COI===============================================
         st.subheader("Add New COI")
         with st.form("add_coi"):
             full_name = st.text_input("Full Name", value=None)
@@ -91,10 +92,7 @@ if section == "COI Management":
 
 
                 response = af.add_new_coi(full_name, email, initial_tokens, initial_price, access_on)
-                if response.status_code == 200:
-                    af.update_coi_df_on_submit(coi_df, response, coi_table_container)
-                else:
-                    st.error(f"Error: {response.status_code} - {response.text}")
+                af.update_coi_df_on_submit(coi_df, response, coi_table_container)
 
 
     with coi_cols2.expander("Delete COI"):
@@ -113,8 +111,33 @@ if section == "COI Management":
                 # except Exception as e:
                 #     st.error(f"Request failed: {e}")
             
-                
-            
+
+    edited_df = st.data_editor(
+        coi_df,
+        num_rows="dynamic",  # Allow adding new rows
+        use_container_width=True,
+        key="coi_editor"
+    )            
+
+    if st.button("Save Changes to S3"):
+        try:
+            # Convert the edited DataFrame to a parquet file
+            buffer = BytesIO()
+            edited_df.to_parquet(buffer, index=False)
+            buffer.seek(0)
+
+            # Upload to S3
+            af.S3_CLIENT.put_object(
+                Bucket=af.BUCKET_NAME,
+                Key=af.COI_TABLE_NAME,
+                Body=buffer,
+                ContentType="application/octet-stream"
+            )
+            st.success("COI Table updated successfully!")
+
+        except Exception as e:
+            st.error(f"Failed to save table: {e}")
+
         
 
     # st.subheader("All Users")

@@ -23,13 +23,15 @@ def add_new_coi(full_name, email, initial_tokens, initial_price, access_on):
     - email (str): Email address of the COI.
     - initial_tokens (int): Initial token balance for the COI.
     - initial_price (float): Initial token price for the COI.
-
+    - access_on (bool): Access status.
     """
-    cognito_jwt_token = st.session_state.get("id_token") # authorization token
+    cognito_jwt_token = st.session_state.get("id_token")  # authorization token
+    # st.write("JWT Token:", cognito_jwt_token)
+
 
     api_url = "https://xuyzj7f0zd.execute-api.us-east-1.amazonaws.com/prod/add-coi"
     headers = {
-        "Authorization": cognito_jwt_token,
+        "Authorization": f"Bearer {cognito_jwt_token}",  # <-- FIX HERE
         "Content-Type": "application/json"
     }
     data = {
@@ -60,7 +62,7 @@ def delete_coi(emails):
     }
     return requests.post(api_url, json=data, headers=headers)
 
-@st.cache_data()
+@st.cache_data(show_spinner="Loading COI Table...")
 def load_coi_table():
     try:
         response = S3_CLIENT.get_object(Bucket=BUCKET_NAME, Key=COI_TABLE_NAME)

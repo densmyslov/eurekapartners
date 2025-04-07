@@ -1,28 +1,23 @@
 import streamlit as st
+import auth  # <-- we import our auth.py functions here
 
 def handle_auth():
     """
-    Displays a login form if the user is not authenticated.
-    Once authenticated, shows a "Sign Out" button.
+    Handles local Streamlit login form and authentication with Cognito.
     """
 
-    # Initialize session state
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
 
-    # AUTHENTICATED BLOCK
     if st.session_state.authenticated:
-        # Dynamically generate a key based on session state
-        if st.sidebar.button("Sign Out", key=f"signout_button_{st.session_state.authenticated}"):
+        if st.sidebar.button("Sign Out", key="signout_button"):
             st.session_state.clear()
             st.rerun()
 
-    # NOT AUTHENTICATED BLOCK
     if not st.session_state.authenticated:
         st.title("Please Log In")
         st.write("Enter your email and password to access the app.")
 
-        # Center the form nicely
         left_col, center_col, right_col = st.columns([3, 2, 3])
 
         with center_col:
@@ -32,20 +27,26 @@ def handle_auth():
                 submit_button = st.form_submit_button("Log In")
 
             if submit_button:
+                # First check against local Streamlit secrets (optional)
                 valid_email = st.secrets["credentials"]["email"]
                 valid_password = st.secrets["credentials"]["password"]
 
                 if email_input == valid_email and password_input == valid_password:
-                    st.session_state.authenticated = True
-                    st.success("Logged in successfully!")
-                    st.rerun()
+                    # Call Cognito AdminInitiateAuth
+                    success = auth.get_tokens_directly_admin_auth(email_input, password_input)
+                    if success:
+                        st.session_state.authenticated = True
+                        st.success("Logged in successfully!")
+                        st.rerun()
+                    else:
+                        st.error("Authentication failed.")
                 else:
                     st.error("Invalid email or password. Please try again.")
 
-        st.stop()
+        st.stop()  # Prevent the rest of the app from loading if not logged in
 
-# Always call authentication at the top
-handle_auth()
 
-# Protected content goes here
-st.write("Welcome to the secure Admin Dashboard!")
+
+
+
+
