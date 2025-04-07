@@ -9,26 +9,19 @@ import boto3
 from io import BytesIO
 # import py files
 import auth
+
 import admin_functions as af
 
 st.set_page_config(page_title="Admin Dashboard", layout="wide")
-
-# --- Break out of an iframe if present ---
-st.markdown(
-    """
-    <script type="text/javascript">
-      if (window.top !== window.self) {
-        window.top.location = window.location.href;
-      }
-    </script>
-    """,
-    unsafe_allow_html=True
-)
+import login
 
 
 
 
-auth.handle_auth()
+
+# auth.handle_auth()
+login.handle_auth()
+
 
 
 
