@@ -11,23 +11,12 @@ from jose.exceptions import ExpiredSignatureError, JWTClaimsError, JWTError
 
 
 # --- Load Cognito Config ---
-try:
-    COGNITO_DOMAIN = st.secrets["cognito"]["domain"]
-    CLIENT_ID = st.secrets["cognito"]["client_id"]
-    REDIRECT_URI = st.secrets["cognito"]["redirect_uri"]
-    REGION = st.secrets["cognito"]["region"]
-    USER_POOL_ID = st.secrets["cognito"]["user_pool_id"]
-except (AttributeError, KeyError):
-    logging.warning("Cognito secrets not found. Using hardcoded values (NOT FOR PRODUCTION).")
-    COGNITO_DOMAIN = "https://<your-prefix>.auth.<region>.amazoncognito.com"
-    CLIENT_ID = "<your-app-client-id>"
-    REDIRECT_URI = "http://localhost:8501"
-    REGION = "<your-aws-region>"
-    USER_POOL_ID = "<your-user-pool-id>"
+COGNITO_DOMAIN = st.secrets["cognito"]["domain"]
+CLIENT_ID = st.secrets["cognito"]["client_id"]
+REDIRECT_URI = st.secrets["cognito"]["redirect_uri"]
+REGION = st.secrets["cognito"]["region"]
+USER_POOL_ID = st.secrets["cognito"]["user_pool_id"]
 
-    if "<your-prefix>" in COGNITO_DOMAIN or "<your-app-client-id>" in CLIENT_ID:
-        st.error("Please configure your Cognito settings in '.streamlit/secrets.toml' or replace placeholders.")
-        st.stop()
 
 # --- URLs ---
 TOKEN_URL = f"{COGNITO_DOMAIN}/oauth2/token"
@@ -201,7 +190,7 @@ def handle_auth():
         ### Welcome!
         Please log in to continue.
 
-        <a href="{login_url}" target="_self" style="display: inline-block; padding: 0.5em 1em; background-color: #FF9900; color: white; text-decoration: none; border-radius: 4px; font-weight: bold;">
+        <a href="{login_url}" target="_top" style="display: inline-block; padding: 0.5em 1em; background-color: #FF9900; color: white; text-decoration: none; border-radius: 4px; font-weight: bold;">
             Login with Cognito
         </a>
         """, unsafe_allow_html=True)
