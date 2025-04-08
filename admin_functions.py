@@ -14,7 +14,7 @@ S3_CLIENT = boto3.client('s3',
 BUCKET_NAME = st.secrets["s3"]["BUCKET_NAME"]
 COI_TABLE_NAME = st.secrets["s3"]["COI_TABLE_NAME"]
 
-def add_new_coi(full_name, email, initial_tokens, initial_price, access_on):
+def add_new_coi(full_name, email, initial_tokens, initial_price, access_on, is_onboarded):
     """
     Adds a new COI to the database.
 
@@ -31,16 +31,18 @@ def add_new_coi(full_name, email, initial_tokens, initial_price, access_on):
 
     api_url = "https://xuyzj7f0zd.execute-api.us-east-1.amazonaws.com/prod/add-coi"
     headers = {
-        "Authorization": f"Bearer {cognito_jwt_token}",  # <-- FIX HERE
-        "Content-Type": "application/json"
-    }
+                "Authorization": f"Bearer {cognito_jwt_token}",  # <-- FIX HERE
+                "Content-Type": "application/json"
+                }
     data = {
         "email": email,
         "full_name": full_name,
         "token_balance": initial_tokens,
         "token_price": initial_price,
-        "access_on": access_on
-    }
+        "access_on": access_on,
+        "is_onboarded": is_onboarded
+        }
+
     return requests.post(api_url, json=data, headers=headers)
 
 def delete_coi(emails):
@@ -63,7 +65,7 @@ def delete_coi(emails):
     return requests.post(api_url, json=data, headers=headers)
 
 @st.cache_data(show_spinner="Loading COI Table...")
-def load_coi_table():
+def load_coi_table(count=None):
     try:
         response = S3_CLIENT.get_object(Bucket=BUCKET_NAME, Key=COI_TABLE_NAME)
         data = response['Body'].read()

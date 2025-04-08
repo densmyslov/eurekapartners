@@ -17,6 +17,11 @@ import login
 
 
 
+if "counter" not in st.session_state:
+    st.session_state.counter = 0
+
+def increment_counter():
+    st.session_state.counter += 1
 
 
 # auth.handle_auth()
@@ -81,17 +86,19 @@ if section == "COI Management":
             initial_tokens = st.number_input("Initial Token Balance", min_value=0)
             initial_price = st.slider("Initial Token Price", value=10, min_value=1, max_value=100)
             access_on = st.toggle("Access On", value=True)
+            is_onboarded = st.toggle("Is Onboarded", value=True)
 
             submitted = st.form_submit_button("Add COI")
 
             if submitted:
+                increment_counter()
                 if not email or not full_name:
                     # Show an error message and stop execution
                     st.error("Email and Full Name cannot be empty.")
                     st.stop()
 
 
-                response = af.add_new_coi(full_name, email, initial_tokens, initial_price, access_on)
+                response = af.add_new_coi(full_name, email, initial_tokens, initial_price, access_on, is_onboarded)
                 af.update_coi_df_on_submit(coi_df, response, coi_table_container)
 
 
