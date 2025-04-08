@@ -1,45 +1,30 @@
 import streamlit as st
 import pandas as pd
-import requests
 from PIL import Image
 import base64
 from io import BytesIO
-from time import sleep
-import boto3
-from io import BytesIO
-# import py files
-import auth
 
+# Import your project files
+import login
+import auth
 import admin_functions as af
 
+# Page config
 st.set_page_config(page_title="Admin Dashboard", layout="wide")
-import login
 
-
-
-if "counter" not in st.session_state:
-    st.session_state.counter = 0
-
-def increment_counter():
-    st.session_state.counter += 1
-
-
-# auth.handle_auth()
+# Handle login
 login.handle_auth()
 
+# Refresh tokens if authenticated
+if st.session_state.get("authenticated", False):
+    auth.refresh_tokens_if_needed()
 
+# Load COI table once into session state
+if "coi_df" not in st.session_state:
+    st.session_state.coi_df = af.load_coi_table()
 
-
-
-
-coi_df = af.load_coi_table()
-
-
-
-# Load the image
+# Load and display your logo
 image = Image.open("assets/eureka_logo.jpeg")
-
-# Convert to base64
 buffered = BytesIO()
 image.save(buffered, format="PNG")
 img_b64 = base64.b64encode(buffered.getvalue()).decode()
@@ -50,39 +35,27 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-
-
-
-
-
-# simulated data
-token_logs = pd.DataFrame([
-    {"User": "user1@example.com", "Action": "Used 20 tokens", "Date": "2024-03-29"},
-    {"User": "user2@example.com", "Action": "Refund request", "Date": "2024-03-28"},
-])
-
+# Sidebar navigation
 section = st.sidebar.radio("Navigate", [
     "COI Management",
     "Token Management"
 ])
 
-
+# ==============================
+#  COI MANAGEMENT SECTION
+# ==============================
 
 if section == "COI Management":
     st.header("COI Management")
-    coi_table_container = st.container()
-    coi_table_container.dataframe(coi_df)
 
-    
-    coi_cols1, coi_cols2, coi_cols3 = st.columns(3)
-    with coi_cols1.expander("Add new / updateCOI"):
+    coi_cols1, coi_cols2 = st.columns(2)
 
-
-#============================================ADD NEW COI===============================================
+    with coi_cols1.expander("➕ Add / Update COI"):
         st.subheader("Add New COI")
+
         with st.form("add_coi"):
             full_name = st.text_input("Full Name", value=None)
-            email = st.text_input("email", value=None)
+            email = st.text_input("Email", value=None)
             initial_tokens = st.number_input("Initial Token Balance", min_value=0)
             initial_price = st.slider("Initial Token Price", value=10, min_value=1, max_value=100)
             access_on = st.toggle("Access On", value=True)
@@ -91,95 +64,102 @@ if section == "COI Management":
             submitted = st.form_submit_button("Add COI")
 
             if submitted:
-                increment_counter()
                 if not email or not full_name:
-                    # Show an error message and stop execution
                     st.error("Email and Full Name cannot be empty.")
                     st.stop()
 
-
+                # API Call to add COI
                 response = af.add_new_coi(full_name, email, initial_tokens, initial_price, access_on, is_onboarded)
-                af.update_coi_df_on_submit(coi_df, response, coi_table_container)
 
+                if response.status_code == 200:
+                    st.success("COI added successfully!")
 
-    with coi_cols2.expander("Delete COI"):
-        st.warning("to delete COI: add email -> ENTER -> add another email ... -> Delete COI")
+                    # ⬇️ Reload latest table from S3 immediately
+                    af.load_coi_table.clear()
+                    st.session_state.coi_df = af.load_coi_table()
+
+                else:
+                    st.error(f"Error adding COI: {response.text}")
+
+    with coi_cols2.expander("🗑️ Delete COI"):
+        st.subheader("Delete COI(s)")
+
         with st.form("delete_coi"):
-            emails = st.text_area("add email, click enter, add another one if needed", placeholder=None)
+            emails = st.text_area("Add emails separated by newlines", placeholder="email1@example.com\nemail2@example.com")
             submitted = st.form_submit_button("Delete COI")
+
             if submitted:
-                if not emails:
+                if not emails.strip():
                     st.error("Emails cannot be empty.")
                     st.stop()
-                # try:
-                response = af.delete_coi(emails)
-                af.update_coi_df_on_submit(coi_df, response, coi_table_container)
 
-                # except Exception as e:
-                #     st.error(f"Request failed: {e}")
-            
+                email_list = emails.strip().split("\n")
+                # API Call to delete COI(s)
+                response = af.delete_coi(email_list)
 
+                if response.status_code == 200:
+                    st.success("COI(s) deleted successfully!")
+
+                    # ⬇️ Reload latest table from S3 immediately
+                    af.load_coi_table.clear()
+                    st.session_state.coi_df = af.load_coi_table()
+
+                else:
+                    st.error(f"Error deleting COI: {response.text}")
+
+    # --- Editable Data Editor ---
     edited_df = st.data_editor(
-        coi_df,
-        num_rows="dynamic",  # Allow adding new rows
+        st.session_state.coi_df,
+        num_rows="dynamic",
         use_container_width=True,
         key="coi_editor"
-    )            
+    )
 
-    if st.button("Save Changes to S3"):
-        try:
-            # Convert the edited DataFrame to a parquet file
-            buffer = BytesIO()
-            edited_df.to_parquet(buffer, index=False)
-            buffer.seek(0)
+    # --- Save Button (Save only if there are changes) ---
+    if not edited_df.equals(st.session_state.coi_df):
+        if st.button("💾 Save Changes to S3"):
+            try:
+                buffer = BytesIO()
+                edited_df.to_parquet(buffer, index=False)
+                buffer.seek(0)
 
-            # Upload to S3
-            af.S3_CLIENT.put_object(
-                Bucket=af.BUCKET_NAME,
-                Key=af.COI_TABLE_NAME,
-                Body=buffer,
-                ContentType="application/octet-stream"
-            )
-            st.success("COI Table updated successfully!")
+                af.S3_CLIENT.put_object(
+                    Bucket=af.BUCKET_NAME,
+                    Key=af.COI_TABLE_NAME,
+                    Body=buffer,
+                    ContentType="application/octet-stream"
+                )
 
-        except Exception as e:
-            st.error(f"Failed to save table: {e}")
+                # ✅ Update session state with edited version
+                st.session_state.coi_df = edited_df.copy()
 
-        
+                st.success("COI Table updated and saved to S3!")
 
-    # st.subheader("All Users")
-    # st.dataframe(coi_df)
+            except Exception as e:
+                st.error(f"Failed to save table: {e}")
 
-    # st.subheader("Modify User")
-    # selected_email = st.selectbox("Select User", coi_df["email"])
-    # col1, col2, col3 = st.columns(3)
-
-    # with col1:
-    #     st.checkbox("Active", value=coi_df[coi_df["email"] == selected_email]["Active"].iloc[0])
-    # with col2:
-    #     st.number_input("Token Balance", value=int(coi_df[coi_df["email"] == selected_email]["Tokens"].iloc[0]))
-    # with col3:
-    #     st.text_input("Referral Account", value=coi_df[coi_df["email"] == selected_email]["Referral"].iloc[0])
-
-    # st.button("Save Changes")
-
-    # st.subheader("Referral Performance")
-    # st.text("Coming soon: Referral performance dashboard.")
+# ==============================
+#  TOKEN MANAGEMENT SECTION
+# ==============================
 
 elif section == "Token Management":
     st.header("Token Management")
 
     st.subheader("Edit Tokens Manually")
     with st.form("edit_tokens"):
-        email = st.selectbox("Select User", coi_df["email"], key="edit_tokens_user")
+        email = st.selectbox("Select User", st.session_state.coi_df["email"], key="edit_tokens_user")
         tokens = st.number_input("Adjust Token Count", value=0)
         st.form_submit_button("Update Tokens")
 
     st.subheader("Token Usage Logs")
+    token_logs = pd.DataFrame([
+        {"User": "user1@example.com", "Action": "Used 20 tokens", "Date": "2024-03-29"},
+        {"User": "user2@example.com", "Action": "Refund request", "Date": "2024-03-28"},
+    ])
     st.dataframe(token_logs)
 
     st.subheader("Refund Requests")
-    refund_user = st.selectbox("Select User Requesting Refund", coi_df["email"], key="refund_user")
+    refund_user = st.selectbox("Select User Requesting Refund", st.session_state.coi_df["email"], key="refund_user")
     st.text_area("Reason for Refund")
     col1, col2 = st.columns(2)
     with col1:
