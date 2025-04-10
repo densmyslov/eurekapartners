@@ -41,6 +41,12 @@ section = st.sidebar.radio("Navigate", [
     "Token Management"
 ])
 
+if st.sidebar.button("Refresh"):
+    af.load_coi_table.clear()
+    st.session_state.coi_df = af.load_coi_table()
+    st.rerun()
+    
+
 # ==============================
 #  COI MANAGEMENT SECTION
 # ==============================
