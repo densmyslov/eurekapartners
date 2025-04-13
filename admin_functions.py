@@ -52,7 +52,7 @@ def safe_api_post(url, data):
 #  MAIN FUNCTIONS
 # ==============================
 
-def add_new_coi(full_name, email, initial_tokens, initial_price, access_on, is_onboarded):
+def add_new_coi(first_name, last_name, email, initial_token_balance, price_qty_data, access_on, is_onboarded):
     """
     Adds a new COI to the database via API Gateway.
     """
@@ -60,9 +60,10 @@ def add_new_coi(full_name, email, initial_tokens, initial_price, access_on, is_o
     api_url = "https://xuyzj7f0zd.execute-api.us-east-1.amazonaws.com/prod/add-coi"
     data = {
         "email": email,
-        "full_name": full_name,
-        "token_balance": initial_tokens,
-        "token_price": initial_price,
+        "first_name": first_name,
+        "last_name": last_name,
+        "initial_token_balance": initial_token_balance,
+        "price_qty_data": price_qty_data,
         "access_on": access_on,
         "is_onboarded": is_onboarded
     }
@@ -87,7 +88,7 @@ def delete_coi(emails):
 
 
 @st.cache_data(show_spinner="Loading COI Table...")
-def load_coi_table(count=None):
+def load_coi_table(counter=None):
     """
     Loads the COI table from S3 and returns it as a DataFrame.
     """
@@ -95,16 +96,28 @@ def load_coi_table(count=None):
     try:
         response = S3_CLIENT.get_object(Bucket=BUCKET_NAME, Key=COI_TABLE_NAME)
         data = response['Body'].read()
-        df = pd.read_parquet(BytesIO(data))
-        
-        if count is not None:
-            return df.head(count)
-        
-        return df
+        return pd.read_parquet(BytesIO(data))
 
     except Exception as e:
         st.error(f"Error loading COI table: {e}")
         return pd.DataFrame()  # Return empty DataFrame on error
+
+# @st.cache_data(show_spinner="Loading default price Table...")
+def load_default_price_data(counter=None):
+    """
+    Loads the default price table from S3 and returns it as a DataFrame.
+    """
+    key = "default_token_prices.parquet"
+    try:
+        response = S3_CLIENT.get_object(Bucket=BUCKET_NAME, Key=key)
+        data = response['Body'].read()
+        price_qty_df = pd.read_parquet(BytesIO(data))
+        return price_qty_df.to_dict(orient='records')
+    
+    except Exception as e:
+        st.error(f"Error loading default price table: {e}")
+        return pd.DataFrame()  # Return empty DataFrame on error
+
 
 
 def update_coi_df_on_submit(df, response, coi_table_container):

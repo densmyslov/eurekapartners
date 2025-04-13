@@ -3,7 +3,7 @@ import pandas as pd
 from PIL import Image
 import base64
 from io import BytesIO
-
+from time import sleep
 # Import your project files
 import login
 import auth
@@ -19,11 +19,17 @@ login.handle_auth()
 if st.session_state.get("authenticated", False):
     auth.refresh_tokens_if_needed()
 
-# Load COI table once into session state
-if "coi_df" not in st.session_state:
-    st.session_state.coi_df = af.load_coi_table()
 
-# Load and display your logo
+
+if "counter" not in st.session_state:
+    st.session_state.counter = 0
+
+def increment_counter():
+    st.session_state.counter += 1
+
+
+
+# Load logo
 image = Image.open("assets/eureka_logo.jpeg")
 buffered = BytesIO()
 image.save(buffered, format="PNG")
@@ -35,6 +41,20 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
+#=======================================================================================================================================
+# LOAD DATA
+#=======================================================================================================================================
+# Load COI table once into session state
+if "coi_df" not in st.session_state:
+    st.session_state.coi_df = af.load_coi_table()
+
+# Load default price/qty data ONCE
+if "default_price_qty_data" not in st.session_state:
+    st.session_state.default_price_qty_data = af.load_default_price_data(counter=st.session_state.counter)
+# Editable working copy
+if "price_qty_data" not in st.session_state:
+    st.session_state.price_qty_data = st.session_state.default_price_qty_data.copy()
+
 # Sidebar navigation
 section = st.sidebar.radio("Navigate", [
     "COI Management",
@@ -42,50 +62,118 @@ section = st.sidebar.radio("Navigate", [
 ])
 
 if st.sidebar.button("Refresh"):
+    increment_counter()
     af.load_coi_table.clear()
-    st.session_state.coi_df = af.load_coi_table()
+    st.session_state.coi_df = af.load_coi_table(counter=st.session_state.counter)
     st.rerun()
-    
 
 # ==============================
 #  COI MANAGEMENT SECTION
 # ==============================
+
+
+
+
+
+# Initialize discard flags
+if "discard_price_qty_changes" not in st.session_state:
+    st.session_state.discard_price_qty_changes = False
+
+if "price_qty_editor_key" not in st.session_state:
+    st.session_state.price_qty_editor_key = "price_qty_editor"
+
+# Handle Discard for price/qty
+if st.session_state.discard_price_qty_changes:
+    st.session_state.price_qty_data = st.session_state.default_price_qty_data.copy()
+    st.session_state.price_qty_editor_key = f"price_qty_editor_{st.session_state.counter}"
+    st.session_state.discard_price_qty_changes = False
 
 if section == "COI Management":
     st.header("COI Management")
 
     coi_cols1, coi_cols2 = st.columns(2)
 
-    with coi_cols1.expander("➕ Add / Update COI"):
+    with coi_cols1.expander("➕ Add New COI"):
         st.subheader("Add New COI")
 
+        # === FORM ===
         with st.form("add_coi"):
-            full_name = st.text_input("Full Name", value=None)
+            first_name = st.text_input("First Name", value=None)
+            last_name = st.text_input("Last Name", value=None)
             email = st.text_input("Email", value=None)
-            initial_tokens = st.number_input("Initial Token Balance", min_value=0)
-            initial_price = st.slider("Initial Token Price", value=10, min_value=1, max_value=100)
+            initial_token_balance = st.number_input("Initial Token Balance", min_value=0)
             access_on = st.toggle("Access On", value=True)
             is_onboarded = st.toggle("Is Onboarded", value=True)
+            st.markdown("#### Token Pricing")
+
+            # Editable price/qty table
+            price_qty_df = st.data_editor(
+                pd.DataFrame(st.session_state.price_qty_data),
+                num_rows="dynamic",
+                use_container_width=True,
+                hide_index=True,
+                key=st.session_state.price_qty_editor_key
+            )
+
+            # Update working copy
+            st.session_state.price_qty_data = price_qty_df.to_dict(orient="records")
 
             submitted = st.form_submit_button("Add COI")
 
             if submitted:
-                if not email or not full_name:
-                    st.error("Email and Full Name cannot be empty.")
+                if any(value is None for value in [first_name, last_name, email]):
+                    st.error("Email and First/Last Name cannot be empty.")
                     st.stop()
 
                 # API Call to add COI
-                response = af.add_new_coi(full_name, email, initial_tokens, initial_price, access_on, is_onboarded)
+                response = af.add_new_coi(
+                    first_name,
+                    last_name,
+                    email,
+                    initial_token_balance,
+                    st.session_state.price_qty_data,
+                    access_on,
+                    is_onboarded
+                )
 
                 if response.status_code == 200:
                     st.success("COI added successfully!")
-
-                    # ⬇️ Reload latest table from S3 immediately
+                    # ✅ 1. Reset price_qty_data to default after adding new COI
+                    st.session_state.price_qty_data = st.session_state.default_price_qty_data.copy()
+                    # ✅ 2. Now increment counter
+                    increment_counter()
+                    # ✅ 3. Reload updated COI table
                     af.load_coi_table.clear()
-                    st.session_state.coi_df = af.load_coi_table()
-
+                    increment_counter()
+                    st.session_state.coi_df = af.load_coi_table(counter=st.session_state.counter)
+                    sleep(2)
+                    st.rerun()
                 else:
                     st.error(f"Error adding COI: {response.text}")
+
+        # --- OUTSIDE form: Discard Price/Qty Changes ---
+        st.markdown("---")
+
+        changes_made_price_qty = not price_qty_df.equals(pd.DataFrame(st.session_state.default_price_qty_data))
+
+        if changes_made_price_qty:
+            if st.button("❌ Discard Price/Qty Changes"):
+                st.session_state.discard_price_qty_changes = True
+                st.session_state.counter += 1
+                st.rerun()
+
+
+    # --- Main COI Table Management ---
+
+    if "discard_changes" not in st.session_state:
+        st.session_state.discard_changes = False
+
+    if "editor_key" not in st.session_state:
+        st.session_state.editor_key = "coi_editor"
+
+    if st.session_state.discard_changes:
+        st.session_state.editor_key = f"coi_editor_{st.session_state.counter}"
+        st.session_state.discard_changes = False
 
     with coi_cols2.expander("🗑️ Delete COI"):
         st.subheader("Delete COI(s)")
@@ -113,36 +201,44 @@ if section == "COI Management":
                 else:
                     st.error(f"Error deleting COI: {response.text}")
 
-    # --- Editable Data Editor ---
     edited_df = st.data_editor(
         st.session_state.coi_df,
         num_rows="dynamic",
         use_container_width=True,
-        key="coi_editor"
+        key=st.session_state.editor_key
     )
 
-    # --- Save Button (Save only if there are changes) ---
-    if not edited_df.equals(st.session_state.coi_df):
-        if st.button("💾 Save Changes to S3"):
-            try:
-                buffer = BytesIO()
-                edited_df.to_parquet(buffer, index=False)
-                buffer.seek(0)
+    changes_made_coi = not edited_df.equals(st.session_state.coi_df)
 
-                af.S3_CLIENT.put_object(
-                    Bucket=af.BUCKET_NAME,
-                    Key=af.COI_TABLE_NAME,
-                    Body=buffer,
-                    ContentType="application/octet-stream"
-                )
+    if changes_made_coi:
+        col1, col2 = st.columns(2)
 
-                # ✅ Update session state with edited version
-                st.session_state.coi_df = edited_df.copy()
+        with col1:
+            if st.button("💾 Save Changes to S3"):
+                try:
+                    buffer = BytesIO()
+                    edited_df.to_parquet(buffer, index=False)
+                    buffer.seek(0)
 
-                st.success("COI Table updated and saved to S3!")
+                    TEMP_TABLE_NAME = "temp/temp_coi_table.parquet"
 
-            except Exception as e:
-                st.error(f"Failed to save table: {e}")
+                    af.S3_CLIENT.put_object(
+                        Bucket=af.BUCKET_NAME,
+                        Key=TEMP_TABLE_NAME,
+                        Body=buffer,
+                        ContentType="application/octet-stream"
+                    )
+
+                    st.session_state.coi_df = edited_df.copy()
+                    st.success("COI Table updated and saved to S3!")
+                except Exception as e:
+                    st.error(f"Failed to save table: {e}")
+
+        with col2:
+            if st.button("❌ Discard COI Table Changes"):
+                st.session_state.discard_changes = True
+                st.session_state.counter += 1
+                st.rerun()
 
 # ==============================
 #  TOKEN MANAGEMENT SECTION
