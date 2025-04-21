@@ -119,7 +119,7 @@ def load_default_price_data(counter=None):
         st.error(f"Error loading default price table: {e}")
         return pd.DataFrame()  # Return empty DataFrame on error
     
-@st.cache_data(show_spinner="Loading transactions table...")
+# @st.cache_data(show_spinner="Loading transactions table...")
 def load_transactions_df(counter=None):
     """
     Loads the transactions table from S3 and returns it as a DataFrame.
