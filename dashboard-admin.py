@@ -206,7 +206,7 @@ if section == "COI Management":
 
     edited_df = st.data_editor(
         st.session_state.coi_df,
-        num_rows="dynamic",
+        num_rows="fixed",
         use_container_width=True,
         key=st.session_state.editor_key
     )

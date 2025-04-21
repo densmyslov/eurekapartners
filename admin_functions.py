@@ -100,6 +100,7 @@ def load_coi_table(counter=None):
 
     except Exception as e:
         st.error(f"Error loading COI table: {e}")
+        st.write(COI_TABLE_NAME)
         return pd.DataFrame()  # Return empty DataFrame on error
 
 @st.cache_data(show_spinner="Loading default price Table...")
