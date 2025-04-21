@@ -55,6 +55,9 @@ if "default_price_qty_data" not in st.session_state:
 if "price_qty_data" not in st.session_state:
     st.session_state.price_qty_data = st.session_state.default_price_qty_data.copy()
 
+# Load transactions table
+trans_df = af.load_transactions_df(counter=st.session_state.counter)
+
 # Sidebar navigation
 section = st.sidebar.radio("Navigate", [
     "COI Management",
@@ -239,6 +242,10 @@ if section == "COI Management":
                 st.session_state.discard_changes = True
                 st.session_state.counter += 1
                 st.rerun()
+
+    # Show transactions table
+    st.subheader("Transactions")
+    st.dataframe(trans_df)
 
 # ==============================
 #  TOKEN MANAGEMENT SECTION

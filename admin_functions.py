@@ -17,7 +17,7 @@ S3_CLIENT = boto3.client(
 # --- S3 constants ---
 BUCKET_NAME = st.secrets["s3"]["BUCKET_NAME"]
 COI_TABLE_NAME = st.secrets["s3"]["COI_TABLE_NAME"]
-
+TRANSACTIONS_TABLE_NAME = st.secrets["s3"]["TRANSACTIONS_TABLE_NAME"]
 
 # ==============================
 #  HELPER FUNCTIONS
@@ -102,7 +102,7 @@ def load_coi_table(counter=None):
         st.error(f"Error loading COI table: {e}")
         return pd.DataFrame()  # Return empty DataFrame on error
 
-# @st.cache_data(show_spinner="Loading default price Table...")
+@st.cache_data(show_spinner="Loading default price Table...")
 def load_default_price_data(counter=None):
     """
     Loads the default price table from S3 and returns it as a DataFrame.
@@ -117,7 +117,20 @@ def load_default_price_data(counter=None):
     except Exception as e:
         st.error(f"Error loading default price table: {e}")
         return pd.DataFrame()  # Return empty DataFrame on error
+    
+@st.cache_data(show_spinner="Loading transactions table...")
+def load_transactions_df(counter=None):
+    """
+    Loads the transactions table from S3 and returns it as a DataFrame.
+    """
+    try:
+        response = S3_CLIENT.get_object(Bucket=BUCKET_NAME, Key=TRANSACTIONS_TABLE_NAME)
+        data = response['Body'].read()
+        return pd.read_parquet(BytesIO(data))
 
+    except Exception as e:
+        st.error(f"Error loading COI table: {e}")
+        return pd.DataFrame()  # Return empty DataFrame on error
 
 
 def update_coi_df_on_submit(df, response, coi_table_container):
