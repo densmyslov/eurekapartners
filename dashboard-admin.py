@@ -8,6 +8,7 @@ from time import sleep
 import login
 import auth
 import admin_functions as af
+import json
 
 # Page config
 st.set_page_config(page_title="Admin Dashboard", layout="wide")
@@ -139,8 +140,13 @@ if section == "COI Management":
                     is_onboarded
                 )
 
+                
+
                 if response.status_code == 200:
                     st.success("COI added successfully!")
+                    temp_password = json.loads(response.text)['message']
+                    st.write(f"Please write down user's temporary password: {temp_password}")
+
                     # ✅ 1. Reset price_qty_data to default after adding new COI
                     st.session_state.price_qty_data = st.session_state.default_price_qty_data.copy()
                     # ✅ 2. Now increment counter
@@ -150,7 +156,7 @@ if section == "COI Management":
                     increment_counter()
                     st.session_state.coi_df = af.load_coi_table(counter=st.session_state.counter)
                     sleep(2)
-                    st.rerun()
+                    # st.rerun()
                 else:
                     st.error(f"Error adding COI: {response.text}")
 

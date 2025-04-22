@@ -87,6 +87,7 @@ def delete_coi(emails):
     return safe_api_post(api_url, data)
 
 
+
 @st.cache_data(show_spinner="Loading COI Table...")
 def load_coi_table(counter=None):
     """
