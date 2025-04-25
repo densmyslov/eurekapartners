@@ -95,6 +95,27 @@ if st.session_state.discard_price_qty_changes:
 if section == "COI Management":
     st.header("COI Management")
 
+    st.subheader("Adjust COI tokens")
+    with st.form("edit_tokens"):
+        email = st.selectbox("Select User", st.session_state.coi_df["email"], key="edit_tokens_user")
+        num_tokens = st.number_input("Adjust Token Count", value=0)
+        if st.form_submit_button("Update Tokens"):
+            email_hash = st.session_state.coi_df.query("email==@email")['email_hash'].tolist()[0]
+            coi_id = st.session_state.coi_df.query("email==@email")['uid'].tolist()[0]
+            payload={
+            'action': 'update transactions_df.parquet',
+            'coi_email': email,
+            'email_hash': email_hash,
+            'coi_id':coi_id,
+            'num_tokens': num_tokens,
+            'transaction_type': "Token adjustment"
+            }
+            api_url = "https://kbeopzaocc.execute-api.us-east-1.amazonaws.com/prod/adjust-tokens"
+            r = af.safe_api_post(api_url, payload)
+            st.write(r)
+            
+    
+
     coi_cols1, coi_cols2 = st.columns(2)
 
     with coi_cols1.expander("➕ Add New COI"):
@@ -146,6 +167,7 @@ if section == "COI Management":
                     st.success("COI added successfully!")
                     temp_password = json.loads(response.text)['message']
                     st.write(f"Please write down user's temporary password: {temp_password}")
+                    st.badge(temp_password, color="green")
 
                     # ✅ 1. Reset price_qty_data to default after adding new COI
                     st.session_state.price_qty_data = st.session_state.default_price_qty_data.copy()
