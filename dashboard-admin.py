@@ -62,6 +62,17 @@ if "discard_price_qty_changes" not in st.session_state:
 if "price_qty_editor_key" not in st.session_state:
     st.session_state.price_qty_editor_key = "price_qty_editor"
 
+if "discard_changes" not in st.session_state:
+    st.session_state.discard_changes = False
+
+if "editor_key" not in st.session_state:
+    st.session_state.editor_key = "coi_editor"
+
+# Initialize session state variables if they don't exist
+if 'confirm_delete' not in st.session_state:
+    st.session_state.confirm_delete = False
+    st.session_state.emails_to_delete = []
+
 #=======================================================================================================================================
 # LOAD DATA
 #=======================================================================================================================================
@@ -91,7 +102,7 @@ if st.session_state.discard_price_qty_changes:
     st.session_state.discard_price_qty_changes = False
 
 #=================================================================================
-#  COI MANAGEMENT SECTION
+#  ADJUST COI TOKENS
 #=================================================================================
 
 
@@ -117,12 +128,13 @@ with col1.expander("expand to adjust COI tokens"):
             r = af.safe_api_post(api_url, payload)
             st.write(r)
         
+#=================================================================================
+#  ADD NEW COI
+#=================================================================================
 
-st.subheader(":blue[Add/Delete COI]")
 coi_cols1, coi_cols2 = st.columns(2)
-
-with coi_cols1.expander("➕ Add New COI"):
-    st.subheader("Add New COI")
+coi_cols1.subheader(":blue[Add New COI]")
+with coi_cols1.expander("➕ expand to add a new COI"):
 
     # === FORM ===
     with st.form("add_coi"):
@@ -179,8 +191,8 @@ with coi_cols1.expander("➕ Add New COI"):
                 # ✅ 3. Reload updated COI table
                 af.load_coi_table.clear()
                 st.session_state.coi_df = af.load_coi_table(counter=st.session_state.counter)
-                sleep(2)
-                st.rerun()
+                # sleep(2)
+                # st.rerun()
             else:
                 st.error(f"Error adding COI: {response.text}")
 
@@ -196,43 +208,95 @@ with coi_cols1.expander("➕ Add New COI"):
             st.rerun()
 
 
-# --- Main COI Table Management ---
-
-if "discard_changes" not in st.session_state:
-    st.session_state.discard_changes = False
-
-if "editor_key" not in st.session_state:
-    st.session_state.editor_key = "coi_editor"
 
 if st.session_state.discard_changes:
     st.session_state.editor_key = f"coi_editor_{st.session_state.counter}"
     st.session_state.discard_changes = False
 
-with coi_cols2.expander("🗑️ Delete COI"):
-    st.subheader("Delete COI(s)")
+#=================================================================================
+#  DELETE COI
+#=================================================================================
 
-    with st.form("delete_coi"):
-        emails = st.text_area("Add emails separated by newlines", placeholder="email1@example.com\nemail2@example.com")
-        submitted = st.form_submit_button("Delete COI")
+coi_cols2.subheader(":red[Delete COI]")
+with coi_cols2.expander("🗑️ expand to delete COI"):
+    
 
-        if submitted:
-            if not emails.strip():
-                st.error("Emails cannot be empty.")
-                st.stop()
 
-            email_list = emails.strip().split("\n")
-            # API Call to delete COI(s)
-            response = af.delete_coi(email_list)
+    # --- Confirmation Section (Displayed only when confirmation is pending) ---
+    if st.session_state.confirm_delete:
+        st.warning(f"**Confirm Deletion:** Are you sure you want to delete COIs for the following {len(st.session_state.emails_to_delete)} email(s)? This action cannot be undone.")
 
-            if response.status_code == 200:
-                st.success("COI(s) deleted successfully!")
+        # Display the emails again for clarity during confirmation
+        st.text_area("Emails targeted for deletion:", value="\n".join(st.session_state.emails_to_delete), height=150, disabled=True)
 
-                # ⬇️ Reload latest table from S3 immediately
-                af.load_coi_table.clear()
-                st.session_state.coi_df = af.load_coi_table()
+        # Create columns for confirmation buttons
+        col1, col2, col3 = st.columns([3, 2, 3]) # Adjust ratios as needed
 
-            else:
-                st.error(f"Error deleting COI: {response.text}")
+        with col1:
+            if st.button(":red[Delete]", type="primary"):
+                try:
+                    # Retrieve the list from session state
+                    email_list = st.session_state.emails_to_delete
+
+                    # --- Perform the actual API Call ---
+                    # st.info(f"Attempting to delete COIs for: {', '.join(email_list)}") # Optional: Add for debugging
+                    response = af.delete_coi(email_list) # Use the list stored in state
+
+                    if response.status_code == 200:
+                        st.success("COI(s) deleted successfully!")
+                        sleep(3)
+
+                        # ⬇️ Reload latest table from S3 immediately
+                        af.load_coi_table.clear() # Assuming this clears a cache like st.cache_data or st.cache_resource
+                        # Ensure the key used for storing df matches where you use it elsewhere
+                        st.session_state.coi_df = af.load_coi_table()
+
+                    else:
+                        st.error(f"Error deleting COI: {response.text}")
+
+                except Exception as e:
+                    st.error(f"An unexpected error occurred during deletion: {e}")
+
+                finally:
+                    # --- Reset state regardless of success or failure ---
+                    st.session_state.confirm_delete = False
+                    st.session_state.emails_to_delete = []
+                    st.rerun() # Rerun to clear the confirmation UI and show the form again
+
+        with col3:
+            if st.button("Cancel"):
+                st.info("Deletion cancelled.")
+                # --- Reset state ---
+                st.session_state.confirm_delete = False
+                st.session_state.emails_to_delete = []
+                st.rerun() # Rerun to clear the confirmation UI
+
+    # --- Original Form Section (Displayed only when NOT confirming) ---
+    # Hide the form if confirmation is pending
+    if not st.session_state.confirm_delete:
+        with st.form("delete_coi"):
+            st.subheader("Delete COI Entries") # Added a subheader for clarity
+            emails = st.text_area("Enter emails separated by newlines", placeholder="email1@example.com\nemail2@example.com")
+            submitted = st.form_submit_button(":red[Prepare Deletion...]") # Changed button text slightly
+
+            if submitted:
+                # Basic validation
+                if not emails.strip():
+                    st.error("Emails cannot be empty.")
+                    # No st.stop() needed here, just let the form finish without proceeding
+                else:
+                    # Prepare list and store in session state for confirmation
+                    email_list = [email.strip() for email in emails.strip().split("\n") if email.strip()] # Clean up list
+
+                    if not email_list:
+                        st.error("No valid emails entered after stripping whitespace.")
+                    else:
+                        st.session_state.emails_to_delete = email_list
+                        st.session_state.confirm_delete = True # Set flag to trigger confirmation UI
+                        st.rerun() # Rerun immediately to show the confirmation section
+#=================================================================================
+#  COI TABLE
+#=================================================================================
 
 st.subheader(":blue[COI Table]")
 with st.expander("Expand to see table"):
@@ -276,7 +340,9 @@ with st.expander("Expand to see table"):
                 st.session_state.counter += 1
                 st.rerun()
 
-# Show transactions table
+#=================================================================================
+#  TRANSACTIONS TABLE
+#=================================================================================
 st.subheader(":blue[Transactions]")
 with st.expander("Expand to see transactions"):
     st.dataframe(trans_df)
