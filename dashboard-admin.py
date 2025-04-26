@@ -331,6 +331,8 @@ with st.expander("Expand to see table"):
 
                     st.session_state.coi_df = edited_df.copy()
                     st.success("COI Table updated and saved to S3!")
+                    sleep(5)
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Failed to save table: {e}")
 
