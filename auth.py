@@ -55,6 +55,7 @@ def get_tokens_directly_admin_auth(email, password):
     except Exception as e:
         st.error(f"Unexpected error during authentication: {e}")
         return False
+    
 
 
 def refresh_tokens_if_needed():

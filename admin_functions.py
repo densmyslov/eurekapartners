@@ -5,6 +5,8 @@ import requests
 import pandas as pd
 from io import BytesIO
 import boto3
+from PIL import Image
+import base64
 import auth  # Import auth.py to refresh tokens
 
 # --- Initialize S3 client ---
@@ -86,7 +88,8 @@ def delete_coi(emails):
 
     return safe_api_post(api_url, data)
 
-
+def increment_counter():
+    st.session_state.counter += 1
 
 @st.cache_data(show_spinner="Loading COI Table...")
 def load_coi_table(counter=None):
@@ -119,6 +122,13 @@ def load_default_price_data(counter=None):
     except Exception as e:
         st.error(f"Error loading default price table: {e}")
         return pd.DataFrame()  # Return empty DataFrame on error
+
+@st.cache_data()   
+def load_logo():
+    image = Image.open("assets/eureka_logo.jpeg")
+    buffered = BytesIO()
+    image.save(buffered, format="PNG")
+    return  base64.b64encode(buffered.getvalue()).decode()
     
 # @st.cache_data(show_spinner="Loading transactions table...")
 def load_transactions_df(counter=None):
