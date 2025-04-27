@@ -329,12 +329,19 @@ with st.expander("Expand to see table"):
                         ContentType="application/octet-stream"
                     )
 
-                    st.session_state.coi_df = edited_df.copy()
+                    # st.session_state.coi_df = edited_df.copy()
                     st.success("COI Table updated and saved to S3!")
-                    sleep(5)
-                    st.rerun()
+                    # sleep(5)
+                    # st.rerun()
+                    cols = ['uid','email','first_name','last_name','access_on']
+                    df = edited_df[cols].copy()
+                    df = pd.concat([st.session_state.coi_df[cols], df]).drop_duplicates(keep=False)
+                    payload = df.iloc[-1,:].to_dict()
+                    st.write(payload)
                 except Exception as e:
                     st.error(f"Failed to save table: {e}")
+                
+
 
         with col2:
             if st.button("❌ Discard COI Table Changes"):
