@@ -171,3 +171,12 @@ def update_coi_df_on_submit(df, response, coi_table_container):
 
     else:
         st.error(f"Error: {response.status_code} - {response.text}")
+
+def reload(coi_df=False, trans_df = False):
+    increment_counter()
+    if coi_df:
+        load_coi_table.clear()
+        st.session_state.coi_df = load_coi_table(counter=st.session_state.counter)
+    if trans_df:
+        trans_df = load_transactions_df(counter=st.session_state.counter)
+    st.rerun()

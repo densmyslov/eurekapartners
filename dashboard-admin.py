@@ -73,6 +73,11 @@ if 'confirm_delete' not in st.session_state:
     st.session_state.confirm_delete = False
     st.session_state.emails_to_delete = []
 
+if 'changes_made_coi' not in st.session_state:
+    st.session_state.changes_made_coi = False
+
+
+
 #=======================================================================================================================================
 # LOAD DATA
 #=======================================================================================================================================
@@ -308,9 +313,10 @@ with st.expander("Expand to see table"):
         key=st.session_state.editor_key
     )
 
-    changes_made_coi = not edited_df.equals(st.session_state.coi_df)
+    st.session_state.changes_made_coi = not edited_df.equals(st.session_state.coi_df)
+    # changes_made_coi = not edited_df.equals(st.session_state.coi_df)
 
-    if changes_made_coi:
+    if st.session_state.changes_made_coi:
         col1, col2 = st.columns(2)
 
         with col1:
@@ -338,16 +344,27 @@ with st.expander("Expand to see table"):
                     df = pd.concat([st.session_state.coi_df[cols], df]).drop_duplicates(keep=False)
                     payload = df.iloc[-1,:].to_dict()
                     st.write(payload)
+                    api_url = "https://xuyzj7f0zd.execute-api.us-east-1.amazonaws.com/prod/change-coi-data"
+                    response = af.safe_api_post(api_url, payload)
+                    st.write(response)
+                    st.session_state.changes_made_coi = False
+                    st.session_state.changes_made_coi = False
+                    sleep(3)
+                    af.reload(coi_df=True)
+ 
                 except Exception as e:
                     st.error(f"Failed to save table: {e}")
                 
 
 
         with col2:
-            if st.button("❌ Discard COI Table Changes"):
-                st.session_state.discard_changes = True
-                st.session_state.counter += 1
-                st.rerun()
+            if st.session_state.changes_made_coi:
+                st.write(st.session_state.changes_made_coi)
+
+                if st.button("❌ Discard COI Table Changes"):
+                    st.session_state.discard_changes = True
+                    st.session_state.counter += 1
+                    st.rerun()
 
 #=================================================================================
 #  TRANSACTIONS TABLE
