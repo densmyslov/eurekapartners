@@ -3,6 +3,7 @@ import pandas as pd
 from io import BytesIO
 from time import sleep
 import json
+import uuid
 import login
 import auth
 import admin_functions as af
@@ -19,7 +20,7 @@ if st.session_state.get("authenticated", False):
 
 
 
-
+s3_client = af.S3_CLIENT
 
 # Load logo
 logo = af.load_logo()
@@ -76,17 +77,29 @@ if 'confirm_delete' not in st.session_state:
 if 'changes_made_coi' not in st.session_state:
     st.session_state.changes_made_coi = False
 
+if 'update_default_settings' not in st.session_state:
+    st.session_state.update_default_settings = False
 
+if 'update_defaults' not in st.session_state:
+    st.session_state.update_defaults = False
 
 #=======================================================================================================================================
 # LOAD DATA
 #=======================================================================================================================================
 # Load COI table once into session state
 if "coi_df" not in st.session_state:
-    st.session_state.coi_df = af.load_coi_table()
+    st.session_state.coi_df = af.load_coi_table(counter = st.session_state.counter)
 
 # Load transactions table
 trans_df = af.load_transactions_df(counter=st.session_state.counter)
+
+if "default_banks_df" not in st.session_state:
+    st.session_state.default_banks_df = af.load_default_banks_df(counter=st.session_state.counter)
+
+
+#=======================================================================================================================================
+# REFRESH COI_DF AND TRANS_DF
+#=======================================================================================================================================
 
 if st.sidebar.button("Refresh"):
     af.increment_counter()
@@ -105,6 +118,131 @@ if st.session_state.discard_price_qty_changes:
     st.session_state.price_qty_data = st.session_state.default_price_qty_data.copy()
     st.session_state.price_qty_editor_key = f"price_qty_editor_{st.session_state.counter}"
     st.session_state.discard_price_qty_changes = False
+
+
+#=================================================================================
+#  ADJUST DEFAULT SETTINGS
+#=================================================================================
+
+with st.sidebar.expander("Adjust default settings"):
+
+
+    if "price_qty_data" not in st.session_state:
+        st.session_state.price_qty_data = af.load_default_price_data(counter=st.session_state.counter)
+    if "default_banks_df" not in st.session_state:
+        st.session_state.default_banks_df = af.load_default_banks_df(counter=st.session_state.counter)
+
+    # Backup copies
+    if "initial_price_qty_data" not in st.session_state:
+        st.session_state.initial_price_qty_data = st.session_state.price_qty_data.copy()
+    if "initial_banks_df" not in st.session_state:
+        st.session_state.initial_banks_df = st.session_state.default_banks_df.copy()
+
+    # Track editor keys
+    if "editor_keys" not in st.session_state:
+        st.session_state.editor_keys = {
+            "price": str(uuid.uuid4()),
+            "banks": str(uuid.uuid4())
+        }
+
+    def reset_to_initial():
+        st.session_state.price_qty_data = st.session_state.initial_price_qty_data.copy()
+        st.session_state.default_banks_df = st.session_state.initial_banks_df.copy()
+        st.session_state.editor_keys["price"] = str(uuid.uuid4())
+        st.session_state.editor_keys["banks"] = str(uuid.uuid4())
+        st.rerun()
+
+    with st.sidebar.expander("Adjust default settings"):
+
+        price_qty_df_default = st.data_editor(
+            pd.DataFrame(st.session_state.price_qty_data),
+            num_rows="dynamic",
+            use_container_width=True,
+            hide_index=True,
+            key=st.session_state.editor_keys["price"]
+        )
+
+        banks_df_default = st.data_editor(
+            pd.DataFrame(st.session_state.default_banks_df),
+            num_rows="dynamic",
+            use_container_width=True,
+            hide_index=True,
+            key=st.session_state.editor_keys["banks"]
+        )
+
+        
+            
+        payload = {}
+        if not price_qty_df_default.equals(pd.DataFrame(st.session_state.price_qty_data)):
+            payload["price_qty_data"] = price_qty_df_default.to_dict(orient="records")
+        if not banks_df_default.equals(pd.DataFrame(st.session_state.default_banks_df)):
+            payload["banks_df"] = banks_df_default.to_dict(orient="records")
+            
+        if payload:
+                st.warning("You are going to update:")
+                st.write(payload)
+                st.session_state.update_default_settings = True
+                st.session_state.default_payload = payload
+
+        col1, col2 = st.columns(2)
+        # if st.session_state.update_default_settings:
+        #     if st.button("Update default settings"):
+        #         st.session_state.update_defaults = True
+               
+            
+        with col1:
+                if st.button("Confirm Update"):
+                    payload = st.session_state.default_payload
+                    if "price_qty_data" in payload:
+                        st.session_state.price_qty_data = payload["price_qty_data"]
+                    if "banks_df" in payload:
+                        st.session_state.default_banks_df = payload["banks_df"]
+
+                    # Update initial copies
+                    st.session_state.initial_price_qty_data = st.session_state.price_qty_data.copy()
+                    st.session_state.initial_banks_df = st.session_state.default_banks_df.copy()
+
+
+
+                    if "price_qty_data" in payload:
+                        buffer = BytesIO()
+                        pd.DataFrame(payload["price_qty_data"]).to_parquet(buffer, index=False)
+                        buffer.seek(0)
+                        st.session_state.price_qty_data = payload["price_qty_data"]
+                        s3_client.put_object(
+                            Bucket=af.BUCKET_NAME,
+                            Key = af.DEFAULT_TOKEN_PRICES_DF_NAME,
+                            Body=buffer.getvalue()
+                        )
+                    if "banks_df" in payload:
+                        buffer = BytesIO()
+                        pd.DataFrame(payload["banks_df"]).to_parquet(buffer, index=False)
+                        buffer.seek(0)
+                        st.session_state.default_banks_df = payload["banks_df"]
+                        s3_client.put_object(
+                            Bucket=af.BUCKET_NAME,
+                            Key = af.DEFAULT_BANKS_DF_NAME,
+                            Body=buffer.getvalue()
+                        )
+                    st.session_state.update_default_settings = False
+                    sleep(3)
+                    st.success("Updated")
+                    st.rerun()
+
+
+
+        with col2:
+                    if st.button("Cancel Update"):
+                        reset_to_initial()
+                        st.session_state.update_default_settings = False            
+                        st.rerun()
+
+
+
+
+
+
+
 
 #=================================================================================
 #  ADJUST COI TOKENS
