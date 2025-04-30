@@ -475,8 +475,7 @@ with st.expander("Expand to see table"):
 
                     # st.session_state.coi_df = edited_df.copy()
                     st.success("COI Table updated and saved to S3!")
-                    # sleep(5)
-                    # st.rerun()
+
                     cols = ['uid','email','first_name','last_name','access_on']
                     df = edited_df[cols].copy()
                     df = pd.concat([st.session_state.coi_df[cols], df]).drop_duplicates(keep=False)
@@ -484,7 +483,7 @@ with st.expander("Expand to see table"):
                     st.write(payload)
                     api_url = "https://xuyzj7f0zd.execute-api.us-east-1.amazonaws.com/prod/change-coi-data"
                     response = af.safe_api_post(api_url, payload)
-                    st.write(response)
+
                     st.session_state.changes_made_coi = False
                     st.session_state.changes_made_coi = False
                     sleep(3)
@@ -497,7 +496,6 @@ with st.expander("Expand to see table"):
 
         with col2:
             if st.session_state.changes_made_coi:
-                st.write(st.session_state.changes_made_coi)
 
                 if st.button("❌ Discard COI Table Changes"):
                     st.session_state.discard_changes = True
